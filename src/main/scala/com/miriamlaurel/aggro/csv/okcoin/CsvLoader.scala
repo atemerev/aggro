@@ -8,7 +8,7 @@ import java.util.UUID
 
 import com.github.tototoshi.csv.CSVReader
 import com.miriamlaurel.aggro.Inventory
-import com.miriamlaurel.aggro.model.Trade
+import com.miriamlaurel.aggro.model.Fill
 import com.miriamlaurel.fxcore._
 import com.miriamlaurel.fxcore.asset.Currency
 import com.miriamlaurel.fxcore.portfolio.Position
@@ -17,7 +17,7 @@ object CsvLoader {
 
   val oft = DateTimeFormatter.ofPattern("yyyy/M/d H:m").withZone(ZoneId.of("Asia/Shanghai"))
 
-  def parseCsv(tokens: Seq[String]): Trade = {
+  def parseCsv(tokens: Seq[String]): Fill = {
     val fillId = tokens.head.toLong
     val id = tokens(1).toLong
     val timeString: String = tokens(2)
@@ -34,7 +34,7 @@ object CsvLoader {
       val cny: Monetary = Monetary(BigDecimal(cnyS), Currency("CNY"))
       val position = Position(btc, cny, None, ts, UUID.randomUUID())
       val inventory: Inventory = Map(Bitcoin -> btcBalance, Currency("CNY") -> cnyBalance)
-      Trade(position, id.toString, Some(fillId.toString), Some(inventory))
+      Fill(position, id.toString, Some(fillId.toString), Some(inventory))
     } catch {
       case x: Throwable =>
         x.printStackTrace()
@@ -43,7 +43,7 @@ object CsvLoader {
 
   }
 
-  def loadFromCsv(dir: File): Stream[Trade] = {
+  def loadFromCsv(dir: File): Stream[Fill] = {
     val files = dir.listFiles(new FilenameFilter {
       override def accept(dir: File, name: String): Boolean = name.startsWith("Transaction") && name.endsWith(".csv")
     })
