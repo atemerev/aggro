@@ -22,7 +22,7 @@ object DbLink {
       val instrument: Instrument = p.instrument
       val newBase = for (i <- t.inventory) yield i(instrument.base)
       val newQuote = for (i <- t.inventory) yield i(instrument.counter)
-      val sql = sql"""INSERT INTO public.fills (order_id, fill_id, venue, exec_time, base_delta, quote_delta, base_balance, quote_balance) VALUES (${id}, ${fillId}, ${venue}, ${time}, ${baseDelta}, ${quoteDelta}, ${newBase}, ${newQuote}) ON CONFLICT DO NOTHING"""
+      val sql = sql"""INSERT INTO public.fills (order_id, fill_id, venue, exec_time, base_delta, quote_delta, base_balance, quote_balance) VALUES (${id}, ${fillId}, ${venue.ticker}, ${time}, ${baseDelta}, ${quoteDelta}, ${newBase}, ${newQuote}) ON CONFLICT DO NOTHING"""
       sql.update().apply()
     }
   }
