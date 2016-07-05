@@ -1,0 +1,13 @@
+<configuration>
+
+    <appender name="MAIN" class="ch.qos.logback.core.ConsoleAppender">
+        <!--<file>mm.log</file>-->
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level %logger{0} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="info">
+        <appender-ref ref="MAIN"/>
+    </root>
+</configuration>
