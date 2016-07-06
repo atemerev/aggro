@@ -20,6 +20,7 @@ lazy val root = (project in file(".")).
       "com.github.tototoshi" %% "scala-csv" % "1.3.3",
       "org.scalikejdbc" %% "scalikejdbc-config"  % "2.4.1",
       "org.postgresql" % "postgresql" % "9.4.1208.jre7",
+      "org.apache.commons" % "commons-io" % "1.3.2",
       "org.scalatest" %% "scalatest" % "2.2.6" % "test"
     )
   ).enablePlugins(JavaAppPackaging)

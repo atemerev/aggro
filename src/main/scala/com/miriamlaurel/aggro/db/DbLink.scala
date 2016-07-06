@@ -7,9 +7,19 @@ import com.miriamlaurel.aggro.model.{Fill, Venue}
 import com.miriamlaurel.fxcore.instrument.Instrument
 import com.miriamlaurel.fxcore.portfolio.Position
 import com.miriamlaurel.fxcore.{Monetary, _}
+import scalikejdbc.config.DBs
 import scalikejdbc.{DB, _}
 
 object DbLink {
+
+  def initialize(): Unit = {
+    DBs.setupAll()
+  }
+
+  def release(): Unit = {
+    DBs.closeAll()
+  }
+
   //noinspection RedundantBlock
   def persistFills(venue: Venue, fills: Iterator[Fill]): Unit = DB localTx { implicit session =>
     for (t <- fills) {
@@ -22,7 +32,7 @@ object DbLink {
       val instrument: Instrument = p.instrument
       val newBase = for (i <- t.inventory) yield i(instrument.base)
       val newQuote = for (i <- t.inventory) yield i(instrument.counter)
-      val sql = sql"""INSERT INTO public.fills (order_id, fill_id, venue, exec_time, base_delta, quote_delta, base_balance, quote_balance) VALUES (${id}, ${fillId}, ${venue.ticker}, ${time}, ${baseDelta}, ${quoteDelta}, ${newBase}, ${newQuote}) ON CONFLICT DO NOTHING"""
+      val sql = sql"""INSERT INTO public.fills (order_id, fill_id, venue, exec_time, base_delta, quote_delta, base_balance, quote_balance, authoritative) VALUES (${id}, ${fillId}, ${venue.ticker}, ${time}, ${baseDelta}, ${quoteDelta}, ${newBase}, ${newQuote}, TRUE) ON CONFLICT DO NOTHING"""
       sql.update().apply()
     }
   }
