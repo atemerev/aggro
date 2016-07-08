@@ -11,11 +11,12 @@ import com.miriamlaurel.aggro.Inventory
 import com.miriamlaurel.aggro.model.Fill
 import com.miriamlaurel.fxcore._
 import com.miriamlaurel.fxcore.asset.Currency
+import com.miriamlaurel.fxcore.party.Party
 import com.miriamlaurel.fxcore.portfolio.Position
 
 object CsvLoader {
 
-  val oft = DateTimeFormatter.ofPattern("yyyy/M/d H:m").withZone(ZoneId.of("Asia/Shanghai"))
+  val oft = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.of("Asia/Shanghai"))
 
   def parseCsv(tokens: Seq[String]): Fill = {
     val fillId = tokens.head.toLong
@@ -34,7 +35,7 @@ object CsvLoader {
       val cny: Monetary = Monetary(BigDecimal(cnyS), Currency("CNY"))
       val position = Position(btc, cny, None, ts, UUID.randomUUID())
       val inventory: Inventory = Map(Bitcoin -> btcBalance, Currency("CNY") -> cnyBalance)
-      Fill(position, id.toString, Some(fillId.toString), Some(inventory))
+      Fill(Party("OKCN"), position, id.toString, Some(fillId.toString), Some(inventory))
     } catch {
       case x: Throwable =>
         x.printStackTrace()

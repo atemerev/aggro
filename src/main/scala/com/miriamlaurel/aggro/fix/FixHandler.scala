@@ -5,13 +5,14 @@ import java.util.UUID
 
 import com.miriamlaurel.aggro.model.Fill
 import com.miriamlaurel.fxcore.instrument.CurrencyPair
+import com.miriamlaurel.fxcore.party.Party
 import com.miriamlaurel.fxcore.portfolio.{Position, PositionSide}
 import quickfix.MessageCracker.Handler
 import quickfix.field.Side
 import quickfix.{Application, Message, SessionID, fix44}
 import quickfix.fix44.{MessageCracker, TradeCaptureReport}
 
-class FixHandler(reportListener: (Fill) => ()) extends MessageCracker with Application {
+class FixHandler(reportListener: Function[Fill, Unit]) extends MessageCracker with Application {
   override def fromAdmin(message: Message, sessionId: SessionID): Unit = ???
 
   override def onLogon(sessionId: SessionID): Unit = ???
@@ -38,7 +39,8 @@ class FixHandler(reportListener: (Fill) => ()) extends MessageCracker with Appli
     val orderId = sideGrp.getOrderID.getValue
     val tradeId = message.getExecID.getValue
     val position = Position(instrument, price, if (side == PositionSide.Long) tradeQty else -tradeQty, None, Instant.now(), UUID.randomUUID())
-    val fill = Fill(position, orderId, Some(tradeId), None) // todo populate inventory
+    val venue = Party("OKCN") // todo extract from repeating group
+    val fill = Fill(venue, position, orderId, Some(tradeId), None) // todo populate inventory
     reportListener.apply(fill)
   }
 

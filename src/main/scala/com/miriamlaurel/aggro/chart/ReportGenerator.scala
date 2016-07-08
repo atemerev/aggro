@@ -7,8 +7,9 @@ import java.time.{Instant, ZoneId}
 
 import com.miriamlaurel.aggro.Inventory
 import com.miriamlaurel.aggro.db.DbLink
-import com.miriamlaurel.aggro.model.{Fill, Venue}
+import com.miriamlaurel.aggro.model.Fill
 import com.miriamlaurel.fxcore.instrument.{CurrencyPair, Instrument}
+import com.miriamlaurel.fxcore.party.Party
 import org.apache.commons.io.IOUtils
 
 import scala.math.BigDecimal.RoundingMode
@@ -20,12 +21,12 @@ class ReportGenerator {
   def mkReport(fills: Seq[Fill], pivotPrice: BigDecimal): Report = {
     var total = BigDecimal(0)
     val first = fills.head
-    val instrument: Instrument = first.fill.instrument
+    val instrument: Instrument = first.position.instrument
     var inv = first.inventory.get
     val firstInv = inv
-    var nav = getNav(instrument, inv, first.fill.price)
+    var nav = getNav(instrument, inv, first.position.price)
     for (t <- fills) yield {
-      val p = t.fill
+      val p = t.position
       inv = t.inventory match {
         case Some(newInv) => newInv
         case None => Map(instrument.base -> (inv(instrument.base) + p.primary.amount), instrument.counter -> (inv(instrument.counter) + p.secondary.amount))
@@ -34,7 +35,7 @@ class ReportGenerator {
       val delta = nowNav - nav
       nav = nowNav
       total = total + delta
-      val dPrice = (p.price - first.fill.price) * firstInv(instrument.base)
+      val dPrice = (p.price - first.position.price) * firstInv(instrument.base)
       (p.timestamp, total * pivotPrice, dPrice * pivotPrice)
     }
   }
@@ -47,10 +48,10 @@ class ReportGenerator {
 object ReportGenerator extends App {
 
   val STRATEGY = "CNC"
-  val VENUE = Venue("OKCN")
+  val VENUE = Party("OKCN")
   val INSTRUMENT = CurrencyPair("BTC/CNY")
-  val PIVOT_RATE = BigDecimal("0.149455")
-  val SCALE = BigDecimal("6.2")
+  val PIVOT_RATE = BigDecimal("0.149602")
+  val SCALE = BigDecimal("9")
 
   DbLink.initialize()
   val dft = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.of("UTC"))
@@ -105,14 +106,14 @@ object ReportGenerator extends App {
     tmpScriptFile
   }
 
-  def mkPlotScript(template: String, dataFile: File, startDate: Instant, endDate: Instant, strategy: String, venue: Venue, scale: BigDecimal): String = {
+  def mkPlotScript(template: String, dataFile: File, startDate: Instant, endDate: Instant, strategy: String, venue: Party, scale: BigDecimal): String = {
     val start = dft.format(startDate).replaceFirst("\\s.+", " 00:00:00")
     val end = dft.format(endDate).replaceFirst("\\s.+", " 23:59:59")
     template
       .replaceFirst("%START_TIME", start)
       .replaceFirst("%END_TIME", end)
       .replaceFirst("%STRATEGY", strategy)
-      .replaceFirst("%VENUE", venue.ticker)
+      .replaceFirst("%VENUE", venue.id)
       .replaceFirst("%START_DATE", sft.format(startDate))
       .replaceFirst("%END_DATE", sft.format(endDate))
       .replaceAll("%SCALE", scale.toString())
