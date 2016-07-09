@@ -1,6 +1,6 @@
 package com.miriamlaurel.aggro.fix
 
-import akka.actor.Actor
+import akka.actor.{Actor, ActorSystem, Props}
 import com.miriamlaurel.aggro.model.Fill
 import quickfix._
 
@@ -13,7 +13,20 @@ class FixServer extends Actor {
   val acceptor = new SocketAcceptor(app, new MemoryStoreFactory, settings, new FileLogFactory(settings), new DefaultMessageFactory)
   val sessionPromise: Promise[SessionID] = Promise()
 
-  override def receive = {
-    case fill: Fill => ???
+  override def preStart(): Unit = {
+    acceptor.start()
   }
+
+  override def receive = {
+    case fill: Fill => println(fill)
+  }
+
+  override def postStop(): Unit = {
+    acceptor.stop()
+  }
+}
+
+object FixServer extends App {
+  val system = ActorSystem("fix")
+  system.actorOf(Props[FixServer])
 }

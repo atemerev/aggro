@@ -7,25 +7,30 @@ import com.miriamlaurel.aggro.model.Fill
 import com.miriamlaurel.fxcore.instrument.CurrencyPair
 import com.miriamlaurel.fxcore.party.Party
 import com.miriamlaurel.fxcore.portfolio.{Position, PositionSide}
+import com.typesafe.scalalogging.LazyLogging
 import quickfix.MessageCracker.Handler
 import quickfix.field.Side
 import quickfix.{Application, Message, SessionID, fix44}
 import quickfix.fix44.{MessageCracker, TradeCaptureReport}
 
-class FixHandler(reportListener: Function[Fill, Unit]) extends MessageCracker with Application {
-  override def fromAdmin(message: Message, sessionId: SessionID): Unit = ???
+class FixHandler(reportListener: Function[Fill, Unit]) extends MessageCracker with Application with LazyLogging {
+  override def fromAdmin(message: Message, sessionId: SessionID): Unit = ()
 
-  override def onLogon(sessionId: SessionID): Unit = ???
+  override def onLogon(sessionId: SessionID): Unit = {
+    logger.info("Logged in: " + sessionId)
+  }
 
   override def onLogout(sessionId: SessionID): Unit = ???
 
-  override def toApp(message: Message, sessionId: SessionID): Unit = ???
+  override def toApp(message: Message, sessionId: SessionID): Unit = ()
 
-  override def onCreate(sessionId: SessionID): Unit = ???
+  override def onCreate(sessionId: SessionID): Unit = {
+    logger.info("FIX session created: " + sessionId)
+  }
 
   override def fromApp(message: Message, sessionId: SessionID): Unit = crack(message, sessionId)
 
-  override def toAdmin(message: Message, sessionId: SessionID): Unit = ???
+  override def toAdmin(message: Message, sessionId: SessionID): Unit = ()
 
   @Handler
   def onExec(message: TradeCaptureReport, sid: SessionID): Unit = {
