@@ -12,17 +12,22 @@ import com.miriamlaurel.fxcore.portfolio.{Position, PositionSide}
 import com.typesafe.scalalogging.LazyLogging
 import quickfix.MessageCracker.Handler
 import quickfix.field.Side
-import quickfix.fix44.{MessageCracker, TradeCaptureReport}
-import quickfix.{Application, Message, SessionID}
+import quickfix.fix44.TradeCaptureReport
+import quickfix.{Application, Message, MessageCracker, SessionID}
 
 class FixHandler(reportListener: Function[Fill, Unit]) extends MessageCracker with Application with LazyLogging {
+
+  // todo: no need to password-protect, just need to configure the firewall to accept only
+  // todo: white-listed connections on this port.
   override def fromAdmin(message: Message, sessionId: SessionID): Unit = ()
 
   override def onLogon(sessionId: SessionID): Unit = {
     logger.info("Logged in: " + sessionId)
   }
 
-  override def onLogout(sessionId: SessionID): Unit = ???
+  override def onLogout(sessionId: SessionID): Unit = {
+    logger.warn("Logged out: " + sessionId)
+  }
 
   override def toApp(message: Message, sessionId: SessionID): Unit = ()
 

@@ -1,6 +1,7 @@
 package com.miriamlaurel.aggro.fix
 
 import akka.actor.{Actor, ActorSystem, Props}
+import com.miriamlaurel.aggro.db.DbLink
 import com.miriamlaurel.aggro.model.Fill
 import quickfix._
 
@@ -18,7 +19,9 @@ class FixServer extends Actor {
   }
 
   override def receive = {
-    case fill: Fill => println(fill)
+    case fill: Fill =>
+      println(fill)
+      DbLink.persistFill(fill)
   }
 
   override def postStop(): Unit = {
@@ -27,6 +30,8 @@ class FixServer extends Actor {
 }
 
 object FixServer extends App {
+  DbLink.initialize()
   val system = ActorSystem("fix")
   system.actorOf(Props[FixServer])
+
 }

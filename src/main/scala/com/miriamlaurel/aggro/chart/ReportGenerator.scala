@@ -16,15 +16,13 @@ import scala.math.BigDecimal.RoundingMode
 
 class ReportGenerator {
 
-  type Report = Seq[(Instant, BigDecimal, BigDecimal)]
+  type Report = Seq[(Instant, BigDecimal, BigDecimal, BigDecimal, BigDecimal, BigDecimal)]
 
-  def mkReport(fills: Seq[Fill], pivotPrice: BigDecimal): Report = {
-    var total = BigDecimal(0)
+  def mkReport(initialPrice: BigDecimal, initialAmount: BigDecimal, fills: Seq[Fill]): Report = {
     val first = fills.head
     val instrument: Instrument = first.position.instrument
     var inv = first.inventory.get
-    val firstInv = inv
-    var nav = getNav(instrument, inv, first.position.price)
+    val initialNav = initialAmount * initialPrice
     for (t <- fills) yield {
       val p = t.position
       inv = t.inventory match {
@@ -32,11 +30,10 @@ class ReportGenerator {
         case None => Map(instrument.base -> (inv(instrument.base) + p.primary.amount), instrument.counter -> (inv(instrument.counter) + p.secondary.amount))
       }
       val nowNav = getNav(instrument, inv, p.price)
-      val delta = nowNav - nav
-      nav = nowNav
-      total = total + delta
-      val dPrice = (p.price - first.position.price) * firstInv(instrument.base)
-      (p.timestamp, total * pivotPrice, dPrice * pivotPrice)
+      val buyAndHoldNav = p.price * initialAmount
+      val nowDelta = nowNav / initialNav - 1
+      val buyAndHoldDelta = buyAndHoldNav / initialNav - 1
+      (p.timestamp, p.price, nowNav, buyAndHoldNav, nowDelta, buyAndHoldDelta)
     }
   }
 
@@ -50,19 +47,23 @@ object ReportGenerator extends App {
   val STRATEGY = "CNC"
   val VENUE = Party("OKCN")
   val INSTRUMENT = CurrencyPair("BTC/CNY")
-  val PIVOT_RATE = BigDecimal("0.149602")
-  val SCALE = BigDecimal("9")
+  // start date: 2016-07-06 23:49:00 Asia/Shanghai
+  val INITIAL_PRICE = BigDecimal("4558.92")
+  val INITIAL_AMOUNT = BigDecimal("4.879947")
 
   DbLink.initialize()
   val dft = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.of("UTC"))
   val sft = DateTimeFormatter.ofPattern("MMMM dd").withZone(ZoneId.of("UTC"))
   val repGen = new ReportGenerator
   val fills = DbLink.loadFillsFromDb(VENUE, INSTRUMENT)
-  val report = repGen.mkReport(fills, PIVOT_RATE)
+  val fst = fills.head
+  val inv = fst.inventory.get
+  val initialAmount = inv(INSTRUMENT.base) + inv(INSTRUMENT.counter) / fst.position.price
+  val report = repGen.mkReport(fst.position.price, initialAmount, fills)
   val csv = report.map(e => {
     val timeString = dft.format(e._1)
-    val total = e._2.setScale(2, RoundingMode.HALF_EVEN)
-    val buyHold = e._3.setScale(2, RoundingMode.HALF_EVEN)
+    val total = e._5.setScale(4, RoundingMode.HALF_EVEN)
+    val buyHold = e._6.setScale(4, RoundingMode.HALF_EVEN)
     s"$timeString,$total,$buyHold"
   })
   DbLink.release()
@@ -76,9 +77,9 @@ object ReportGenerator extends App {
   val endDate = report.last._1
 
   val dataFile = writeDataFile(csv)
-  val plotScript = mkPlotScript(template, dataFile, startDate, endDate, STRATEGY, VENUE, SCALE)
+  val plotScript = mkPlotScript(template, dataFile, startDate, endDate, STRATEGY, VENUE)
   val plotFile = writePlotScript(plotScript)
-  val pngFile = Files.createTempFile(null, ".png").toFile
+  val pngFile = Files.createTempFile(null, ".svg").toFile
 
   val pb = new ProcessBuilder("gnuplot", plotFile.getAbsolutePath)
   pb.redirectOutput(pngFile)
@@ -88,7 +89,6 @@ object ReportGenerator extends App {
   Thread.sleep(700)
   dataFile.deleteOnExit()
   plotFile.deleteOnExit()
-
 
   def writeDataFile(lines: Seq[String]): File = {
     val tmpDataFile = Files.createTempFile(null, null).toFile
@@ -106,9 +106,9 @@ object ReportGenerator extends App {
     tmpScriptFile
   }
 
-  def mkPlotScript(template: String, dataFile: File, startDate: Instant, endDate: Instant, strategy: String, venue: Party, scale: BigDecimal): String = {
-    val start = dft.format(startDate).replaceFirst("\\s.+", " 00:00:00")
-    val end = dft.format(endDate).replaceFirst("\\s.+", " 23:59:59")
+  def mkPlotScript(template: String, dataFile: File, startDate: Instant, endDate: Instant, strategy: String, venue: Party): String = {
+    val start = dft.format(startDate)
+    val end = dft.format(endDate.plusSeconds(600))
     template
       .replaceFirst("%START_TIME", start)
       .replaceFirst("%END_TIME", end)
@@ -116,7 +116,6 @@ object ReportGenerator extends App {
       .replaceFirst("%VENUE", venue.id)
       .replaceFirst("%START_DATE", sft.format(startDate))
       .replaceFirst("%END_DATE", sft.format(endDate))
-      .replaceAll("%SCALE", scale.toString())
       .replaceAll("%DATA_FILE", dataFile.getAbsolutePath)
   }
 }

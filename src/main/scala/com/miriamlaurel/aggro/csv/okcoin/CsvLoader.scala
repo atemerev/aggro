@@ -46,11 +46,13 @@ object CsvLoader {
 
   def loadFromCsv(dir: File): Array[Fill] = {
     val files = dir.listFiles(new FilenameFilter {
-      override def accept(dir: File, name: String): Boolean = name.startsWith("Transaction") && name.endsWith(".csv")
+      override def accept(dir: File, name: String): Boolean = name.endsWith(".csv")
     })
     val data = for (file <- files) yield {
       val reader = CSVReader.open(file)
-      val fills = reader.toStream.drop(1).map(parseCsv).toArray
+      val fills = reader.toStream.drop(1).filter(line => {
+        !line.head.startsWith("1024548491")
+      }).map(parseCsv).toArray
       reader.close()
       fills
     }
