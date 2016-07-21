@@ -1,7 +1,7 @@
 package com.miriamlaurel.aggro.chart
 
 import java.io.{File, FileWriter, InputStreamReader, StringWriter}
-import java.nio.file.Files
+import java.nio.file.{CopyOption, Files, Path, StandardCopyOption}
 import java.time.format.DateTimeFormatter
 import java.time.{Instant, ZoneId}
 
@@ -23,18 +23,22 @@ class ReportGenerator {
     val instrument: Instrument = first.position.instrument
     var inv = first.inventory.get
     val initialNav = initialAmount * initialPrice
-    for (t <- fills) yield {
+    val data = for (t <- fills) yield {
       val p = t.position
       inv = t.inventory match {
         case Some(newInv) => newInv
         case None => Map(instrument.base -> (inv(instrument.base) + p.primary.amount), instrument.counter -> (inv(instrument.counter) + p.secondary.amount))
       }
       val nowNav = getNav(instrument, inv, p.price)
+      if (nowNav < 22000) {
+        println(t.fillId.get)
+      }
       val buyAndHoldNav = p.price * initialAmount
       val nowDelta = nowNav / initialNav - 1
       val buyAndHoldDelta = buyAndHoldNav / initialNav - 1
       (p.timestamp, p.price, nowNav, buyAndHoldNav, nowDelta, buyAndHoldDelta)
     }
+    data.filter(_._5 > -0.02)
   }
 
   def getNav(instrument: Instrument, inv: Inventory, price: BigDecimal): BigDecimal = {
@@ -79,14 +83,15 @@ object ReportGenerator extends App {
   val dataFile = writeDataFile(csv)
   val plotScript = mkPlotScript(template, dataFile, startDate, endDate, STRATEGY, VENUE)
   val plotFile = writePlotScript(plotScript)
-  val pngFile = Files.createTempFile(null, ".svg").toFile
+  val pngFile = Files.createTempFile(null, ".png").toFile
 
   val pb = new ProcessBuilder("gnuplot", plotFile.getAbsolutePath)
   pb.redirectOutput(pngFile)
   pb.start()
 
-  println(pngFile.getAbsolutePath)
   Thread.sleep(700)
+  println(pngFile.getAbsolutePath)
+  Files.copy(pngFile.toPath, new File("report.png").toPath, StandardCopyOption.REPLACE_EXISTING)
   dataFile.deleteOnExit()
   plotFile.deleteOnExit()
 

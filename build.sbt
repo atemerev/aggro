@@ -1,4 +1,4 @@
-mainClass in Compile := Some("com.miriamlaurel.carb.Main")
+mainClass in Compile := Some("com.miriamlaurel.aggro.chart.ReportGenerator")
 
 lazy val root = (project in file(".")).
   settings(
