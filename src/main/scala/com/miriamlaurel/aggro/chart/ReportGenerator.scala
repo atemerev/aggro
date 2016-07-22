@@ -63,11 +63,12 @@ object ReportGenerator extends App {
   val INITIAL_PRICE = BigDecimal.valueOf(config.getDouble("reporting.initialPrice"))
   val INITIAL_AMOUNT = BigDecimal.valueOf(config.getDouble("reporting.initialAmount"))
 
-  DbLink.initialize()
+  val db = new DbLink(config.getString("reporting.tableName"))
+  db.initialize()
   val dft = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.of("UTC"))
   val sft = DateTimeFormatter.ofPattern("MMMM dd").withZone(ZoneId.of("UTC"))
   val repGen = new ReportGenerator(config)
-  val fills = DbLink.loadFillsFromDb(VENUE, INSTRUMENT)
+  val fills = db.loadFillsFromDb(VENUE, INSTRUMENT)
   val fst = fills.head
   val inv = fst.inventory.get
   val initialAmount = inv(INSTRUMENT.base) + inv(INSTRUMENT.counter) / fst.position.price
@@ -78,7 +79,7 @@ object ReportGenerator extends App {
     val buyHold = e._6.setScale(4, RoundingMode.HALF_EVEN)
     s"$timeString,$total,$buyHold"
   })
-  DbLink.release()
+  db.release()
   val writer = new StringWriter()
   val templateReader = new InputStreamReader(classOf[ReportGenerator].getResourceAsStream("/plchart.gnuplot"))
   IOUtils.copy(templateReader, writer)

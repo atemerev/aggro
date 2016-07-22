@@ -8,11 +8,12 @@ import scalikejdbc.config.DBs
 
 object Main extends App {
   if (args.length > 0) {
-    DBs.setupAll()
+    val db = new DbLink("fills")
+    db.initialize()
     val dir = new File(args(0))
     val fills = CsvLoader.loadFromCsv(dir)
-    DbLink.persistFills(fills.iterator)
-    DBs.closeAll()
+    db.persistFills(fills.iterator)
+    db.release()
   } else {
     throw new RuntimeException("Oh shi! " + args)
   }
