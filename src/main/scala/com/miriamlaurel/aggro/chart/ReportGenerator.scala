@@ -1,7 +1,7 @@
 package com.miriamlaurel.aggro.chart
 
 import java.io.{File, FileWriter, InputStreamReader, StringWriter}
-import java.nio.file.{CopyOption, Files, Path, StandardCopyOption}
+import java.nio.file.{Files, StandardCopyOption}
 import java.time.format.DateTimeFormatter
 import java.time.{Instant, ZoneId}
 
@@ -10,11 +10,12 @@ import com.miriamlaurel.aggro.db.DbLink
 import com.miriamlaurel.aggro.model.Fill
 import com.miriamlaurel.fxcore.instrument.{CurrencyPair, Instrument}
 import com.miriamlaurel.fxcore.party.Party
+import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.commons.io.IOUtils
 
 import scala.math.BigDecimal.RoundingMode
 
-class ReportGenerator {
+class ReportGenerator(config: Config) {
 
   type Report = Seq[(Instant, BigDecimal, BigDecimal, BigDecimal, BigDecimal, BigDecimal)]
 
@@ -30,7 +31,7 @@ class ReportGenerator {
         case None => Map(instrument.base -> (inv(instrument.base) + p.primary.amount), instrument.counter -> (inv(instrument.counter) + p.secondary.amount))
       }
       val nowNav = getNav(instrument, inv, p.price)
-      if (nowNav < 22000) {
+      if (nowNav < config.getInt("report.minNav")) {
         println(t.fillId.get)
       }
       val buyAndHoldNav = p.price * initialAmount
@@ -38,7 +39,7 @@ class ReportGenerator {
       val buyAndHoldDelta = buyAndHoldNav / initialNav - 1
       (p.timestamp, p.price, nowNav, buyAndHoldNav, nowDelta, buyAndHoldDelta)
     }
-    data.filter(_._5 > -0.02)
+    data.filter(_._5 > config.getInt("report.minPercent"))
   }
 
   def getNav(instrument: Instrument, inv: Inventory, price: BigDecimal): BigDecimal = {
@@ -48,17 +49,24 @@ class ReportGenerator {
 
 object ReportGenerator extends App {
 
-  val STRATEGY = "CNC"
-  val VENUE = Party("OKCN")
-  val INSTRUMENT = CurrencyPair("BTC/CNY")
+  val configFile = new File("report.conf")
+  if (!configFile.canRead) {
+    System.err.println("Can't load report.conf configuration file from current directory. Does it exist? Can it be read?")
+    System.exit(1)
+  }
+  val config = ConfigFactory.parseFile(configFile)
+
+  val STRATEGY = config.getString("reporting.strategyName")
+  val VENUE = Party(config.getString("reporting.venue"))
+  val INSTRUMENT = CurrencyPair(config.getString("reporting.instrument"))
   // start date: 2016-07-06 23:49:00 Asia/Shanghai
-  val INITIAL_PRICE = BigDecimal("4558.92")
-  val INITIAL_AMOUNT = BigDecimal("4.879947")
+  val INITIAL_PRICE = BigDecimal.valueOf(config.getDouble("reporting.initialPrice"))
+  val INITIAL_AMOUNT = BigDecimal.valueOf(config.getDouble("reporting.initialAmount"))
 
   DbLink.initialize()
   val dft = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.of("UTC"))
   val sft = DateTimeFormatter.ofPattern("MMMM dd").withZone(ZoneId.of("UTC"))
-  val repGen = new ReportGenerator
+  val repGen = new ReportGenerator(config)
   val fills = DbLink.loadFillsFromDb(VENUE, INSTRUMENT)
   val fst = fills.head
   val inv = fst.inventory.get
@@ -83,15 +91,14 @@ object ReportGenerator extends App {
   val dataFile = writeDataFile(csv)
   val plotScript = mkPlotScript(template, dataFile, startDate, endDate, STRATEGY, VENUE)
   val plotFile = writePlotScript(plotScript)
-  val pngFile = Files.createTempFile(null, ".png").toFile
+  val pngFile = Files.createTempFile(null, ".svg").toFile
 
   val pb = new ProcessBuilder("gnuplot", plotFile.getAbsolutePath)
   pb.redirectOutput(pngFile)
   pb.start()
-
   Thread.sleep(700)
   println(pngFile.getAbsolutePath)
-  Files.copy(pngFile.toPath, new File("report.png").toPath, StandardCopyOption.REPLACE_EXISTING)
+  Files.copy(pngFile.toPath, new File(config.getString("reporting.outFile")).toPath, StandardCopyOption.REPLACE_EXISTING)
   dataFile.deleteOnExit()
   plotFile.deleteOnExit()
 
