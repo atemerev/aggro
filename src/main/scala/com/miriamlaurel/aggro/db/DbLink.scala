@@ -40,13 +40,12 @@ class DbLink(tableName: String) {
     val instrument: Instrument = p.instrument
     val newBase = for (i <- fill.inventory) yield i(instrument.base)
     val newQuote = for (i <- fill.inventory) yield i(instrument.counter)
-    val sql = sql"""INSERT INTO ${tableName} (order_id, fill_id, venue, exec_time, base_delta, quote_delta, base_balance, quote_balance, authoritative) VALUES (${id}, ${fillId}, ${venue.id}, ${time}, ${baseDelta}, ${quoteDelta}, ${newBase}, ${newQuote}, TRUE) ON CONFLICT DO NOTHING"""
+    val sql = sql"""INSERT INTO fills (order_id, fill_id, venue, exec_time, base_delta, quote_delta, base_balance, quote_balance, authoritative) VALUES (${id}, ${fillId}, ${venue.id}, ${time}, ${baseDelta}, ${quoteDelta}, ${newBase}, ${newQuote}, TRUE) ON CONFLICT DO NOTHING"""
     sql.update().apply()
-
   }
 
   def loadFillsFromDb(venue: Party, instrument: Instrument): Seq[Fill] = DB readOnly { implicit session =>
-    val sql = sql"""SELECT distinct on (date_trunc('minute', exec_time)) order_id, fill_id, exec_time, base_asset, quote_asset, base_balance, quote_balance, base_delta, quote_delta FROM ${tableName} WHERE venue = ${venue.id} order by date_trunc('minute', exec_time), exec_time ASC"""
+    val sql = sql"""SELECT distinct on (date_trunc('minute', exec_time)) order_id, fill_id, exec_time, base_asset, quote_asset, base_balance, quote_balance, base_delta, quote_delta FROM fills WHERE venue = ${venue.id} order by date_trunc('minute', exec_time), exec_time ASC"""
     val mapped = sql.map(rs => {
       val id = rs.string("order_id")
       val fillId = rs.string("fill_id")

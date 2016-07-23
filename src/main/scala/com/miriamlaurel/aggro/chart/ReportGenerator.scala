@@ -31,7 +31,7 @@ class ReportGenerator(config: Config) {
         case None => Map(instrument.base -> (inv(instrument.base) + p.primary.amount), instrument.counter -> (inv(instrument.counter) + p.secondary.amount))
       }
       val nowNav = getNav(instrument, inv, p.price)
-      if (nowNav < config.getInt("report.minNav")) {
+      if (nowNav < config.getInt("reporting.minNav")) {
         println(t.fillId.get)
       }
       val buyAndHoldNav = p.price * initialAmount
@@ -39,7 +39,7 @@ class ReportGenerator(config: Config) {
       val buyAndHoldDelta = buyAndHoldNav / initialNav - 1
       (p.timestamp, p.price, nowNav, buyAndHoldNav, nowDelta, buyAndHoldDelta)
     }
-    data.filter(_._5 > config.getInt("report.minPercent"))
+    data.filter(_._5 > config.getInt("reporting.minPercent"))
   }
 
   def getNav(instrument: Instrument, inv: Inventory, price: BigDecimal): BigDecimal = {
