@@ -22,8 +22,8 @@ object CsvLoader {
     val fillId = tokens.head.toLong
     val id = tokens(1).toLong
     val timeString: String = tokens(2)
-    val btcBalance = BigDecimal(tokens(5).split("/")(0).replaceAll(",", ""))
-    val cnyBalance = BigDecimal(tokens(7).replaceAll(",", ""))
+    val btcBalance = SafeDouble(tokens(5).split("/")(0).replaceAll(",", "").toDouble)
+    val cnyBalance = SafeDouble(tokens(7).replaceAll(",", "").toDouble)
     val parsedTime: TemporalAccessor = oft.parse(timeString)
     val ts = Instant.from(parsedTime)
     try {
@@ -31,9 +31,9 @@ object CsvLoader {
       val btcS = if (btcStr.startsWith("+")) btcStr.substring(1) else btcStr
       val cnyStr = tokens(6).replaceAll(",", "")
       val cnyS = if (cnyStr.startsWith("+")) cnyStr.substring(1) else cnyStr
-      val btc: Monetary = Monetary(BigDecimal(btcS), Bitcoin)
-      val cny: Monetary = Monetary(BigDecimal(cnyS), Currency("CNY"))
-      val position = Position(btc, cny, None, ts, UUID.randomUUID())
+      val btc: Monetary = Monetary(SafeDouble(btcS.toDouble), Bitcoin)
+      val cny: Monetary = Monetary(SafeDouble(cnyS.toDouble), Currency("CNY"))
+      val position = Position(btc, cny, None, ts.toEpochMilli, UUID.randomUUID())
       val inventory: Inventory = Map(Bitcoin -> btcBalance, Currency("CNY") -> cnyBalance)
       Fill(Party("OKCN"), position, id.toString, Some(fillId.toString), Some(inventory))
     } catch {

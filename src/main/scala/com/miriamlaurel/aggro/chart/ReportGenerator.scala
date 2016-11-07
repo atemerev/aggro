@@ -8,22 +8,25 @@ import java.time.{Instant, ZoneId}
 import com.miriamlaurel.aggro.Inventory
 import com.miriamlaurel.aggro.db.DbLink
 import com.miriamlaurel.aggro.model.Fill
+import com.miriamlaurel.fxcore.SafeDouble
 import com.miriamlaurel.fxcore.instrument.{CurrencyPair, Instrument}
 import com.miriamlaurel.fxcore.party.Party
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.commons.io.IOUtils
 
-import scala.math.BigDecimal.RoundingMode
 
 class ReportGenerator(config: Config) {
 
-  type Report = Seq[(Instant, BigDecimal, BigDecimal, BigDecimal, BigDecimal, BigDecimal)]
+  type Report = Seq[(Long, SafeDouble, SafeDouble, SafeDouble, SafeDouble, SafeDouble)]
 
-  def mkReport(initialPrice: BigDecimal, initialAmount: BigDecimal, fills: Seq[Fill]): Report = {
+  def mkReport(fills: Seq[Fill]): Report = {
     val first = fills.head
     val instrument: Instrument = first.position.instrument
     var inv = first.inventory.get
-    val initialNav = initialAmount * initialPrice
+    val initialPrice = first.position.price
+    var initialAmount = inv(instrument.base) + inv(instrument.counter) / initialPrice
+    var initialNav = getNav(instrument, inv, initialPrice)
+    var prevNav = initialNav
     val data = for (t <- fills) yield {
       val p = t.position
       inv = t.inventory match {
@@ -31,18 +34,26 @@ class ReportGenerator(config: Config) {
         case None => Map(instrument.base -> (inv(instrument.base) + p.primary.amount), instrument.counter -> (inv(instrument.counter) + p.secondary.amount))
       }
       val nowNav = getNav(instrument, inv, p.price)
-      if (nowNav < config.getInt("reporting.minNav")) {
-        println(t.fillId.get)
+      var nowDelta = nowNav / prevNav - 1
+      if (nowDelta > 0.2) {
+        // a hack to account for deposits/withdrawals; todo get them from API
+        println(prevNav)
+        println(nowNav)
+        initialAmount = nowNav / (prevNav / initialNav) / p.price
+        initialNav = initialAmount * initialPrice
+        nowDelta = nowNav / initialNav - 1
       }
+      prevNav = nowNav
       val buyAndHoldNav = p.price * initialAmount
-      val nowDelta = nowNav / initialNav - 1
       val buyAndHoldDelta = buyAndHoldNav / initialNav - 1
-      (p.timestamp, p.price, nowNav, buyAndHoldNav, nowDelta, buyAndHoldDelta)
+      val navDelta = nowNav / initialNav - 1
+//      println(navDelta)
+      (p.timestamp, p.price, nowNav, buyAndHoldNav, navDelta, buyAndHoldDelta)
     }
-    data.filter(_._5 > config.getInt("reporting.minPercent"))
+    data
   }
 
-  def getNav(instrument: Instrument, inv: Inventory, price: BigDecimal): BigDecimal = {
+  def getNav(instrument: Instrument, inv: Inventory, price: SafeDouble): SafeDouble = {
     inv(instrument.base) * price + inv(instrument.counter)
   }
 }
@@ -60,10 +71,8 @@ object ReportGenerator extends App {
   val VENUE = Party(config.getString("reporting.venue"))
   val INSTRUMENT = CurrencyPair(config.getString("reporting.instrument"))
   // start date: 2016-07-06 23:49:00 Asia/Shanghai
-  val INITIAL_PRICE = BigDecimal.valueOf(config.getDouble("reporting.initialPrice"))
-  val INITIAL_AMOUNT = BigDecimal.valueOf(config.getDouble("reporting.initialAmount"))
 
-  val db = new DbLink(config.getString("reporting.tableName"))
+  val db = new DbLink(config)
   db.initialize()
   val dft = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.of("UTC"))
   val sft = DateTimeFormatter.ofPattern("MMMM dd").withZone(ZoneId.of("UTC"))
@@ -71,12 +80,11 @@ object ReportGenerator extends App {
   val fills = db.loadFillsFromDb(VENUE, INSTRUMENT)
   val fst = fills.head
   val inv = fst.inventory.get
-  val initialAmount = inv(INSTRUMENT.base) + inv(INSTRUMENT.counter) / fst.position.price
-  val report = repGen.mkReport(fst.position.price, initialAmount, fills)
+  val report = repGen.mkReport(fills)
   val csv = report.map(e => {
-    val timeString = dft.format(e._1)
-    val total = e._5.setScale(4, RoundingMode.HALF_EVEN)
-    val buyHold = e._6.setScale(4, RoundingMode.HALF_EVEN)
+    val timeString = dft.format(Instant.ofEpochMilli(e._1))
+    val total = e._5
+    val buyHold = e._6
     s"$timeString,$total,$buyHold"
   })
   db.release()
@@ -90,7 +98,7 @@ object ReportGenerator extends App {
   val endDate = report.last._1
 
   val dataFile = writeDataFile(csv)
-  val plotScript = mkPlotScript(template, dataFile, startDate, endDate, STRATEGY, VENUE)
+  val plotScript = mkPlotScript(template, dataFile, Instant.ofEpochMilli(startDate), Instant.ofEpochMilli(endDate), STRATEGY, VENUE)
   val plotFile = writePlotScript(plotScript)
   val pngFile = Files.createTempFile(null, ".svg").toFile
 

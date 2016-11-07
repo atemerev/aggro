@@ -1,10 +1,10 @@
 package com.miriamlaurel.aggro.fix
 
-import java.time.Instant
 import java.util.UUID
 
 import com.miriamlaurel.aggro.Inventory
 import com.miriamlaurel.aggro.model.Fill
+import com.miriamlaurel.fxcore.SafeDouble
 import com.miriamlaurel.fxcore.asset.Currency
 import com.miriamlaurel.fxcore.instrument.CurrencyPair
 import com.miriamlaurel.fxcore.party.Party
@@ -43,8 +43,8 @@ class FixHandler(reportListener: Function[Fill, Unit]) extends MessageCracker wi
   def onExec(message: TradeCaptureReport, sid: SessionID): Unit = {
     val symbol = message.getSymbol.getValue
     val instrument = CurrencyPair(symbol)
-    val tradeQty = BigDecimal.valueOf(message.getLastQty.getValue)
-    val price = BigDecimal.valueOf(message.getLastPx.getValue)
+    val tradeQty = SafeDouble(message.getLastQty.getValue)
+    val price = SafeDouble(message.getLastPx.getValue)
     val sideGrp = new TradeCaptureReport.NoSides
     message.getGroup(1, sideGrp)
     val side = if (sideGrp.getSide.getValue == Side.BUY) PositionSide.Long else PositionSide.Short
@@ -53,13 +53,13 @@ class FixHandler(reportListener: Function[Fill, Unit]) extends MessageCracker wi
     sideGrp.getGroup(1, partyGrp)
     val party = partyGrp.getPartyID.getValue
     val tradeId = message.getExecID.getValue
-    val position = Position(instrument, price, if (side == PositionSide.Long) tradeQty else -tradeQty, None, Instant.now(), UUID.randomUUID())
+    val position = Position(instrument, price, if (side == PositionSide.Long) tradeQty else -tradeQty, None, System.currentTimeMillis(), UUID.randomUUID())
     val venue = Party(party)
     val legGrp = new TradeCaptureReport.NoLegs
     val balance = for (i <- 1 to message.getNoLegs.getValue) yield {
       message.getGroup(i, legGrp)
       val ccy = Currency(legGrp.getLegCurrency.getValue)
-      val qty = BigDecimal(legGrp.getLegQty.getValue)
+      val qty = SafeDouble(legGrp.getLegQty.getValue)
       ccy -> qty
     }
     val inventory: Inventory = balance.toMap

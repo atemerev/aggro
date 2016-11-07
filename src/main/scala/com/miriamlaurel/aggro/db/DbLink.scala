@@ -8,17 +8,19 @@ import com.miriamlaurel.fxcore.Monetary
 import com.miriamlaurel.fxcore.instrument.Instrument
 import com.miriamlaurel.fxcore.party.Party
 import com.miriamlaurel.fxcore.portfolio.Position
-import scalikejdbc.config.DBs
+import com.typesafe.config.Config
 import scalikejdbc._
 
-class DbLink(tableName: String) {
+class DbLink(config: Config) {
+
+  val init = new DbInit(config)
 
   def initialize(): Unit = {
-    DBs.setupAll()
+    init.setupAll()
   }
 
   def release(): Unit = {
-    DBs.closeAll()
+    init.closeAll()
   }
 
   //noinspection RedundantBlock
@@ -49,11 +51,11 @@ class DbLink(tableName: String) {
     val mapped = sql.map(rs => {
       val id = rs.string("order_id")
       val fillId = rs.string("fill_id")
-      val time = rs.timestamp("exec_time").toInstant
-      val baseDelta = Monetary(rs.bigDecimal("base_delta"), instrument.base)
-      val quoteDelta = Monetary(rs.bigDecimal("quote_delta"), instrument.counter)
-      val baseBalance = rs.bigDecimalOpt("base_balance")
-      val quoteBalance = rs.bigDecimalOpt("quote_balance")
+      val time = rs.timestamp("exec_time").toInstant.toEpochMilli
+      val baseDelta = Monetary(rs.double("base_delta"), instrument.base)
+      val quoteDelta = Monetary(rs.double("quote_delta"), instrument.counter)
+      val baseBalance = rs.doubleOpt("base_balance")
+      val quoteBalance = rs.doubleOpt("quote_balance")
       val inv: Option[Inventory] = for (bBase <- baseBalance; bQuote <- quoteBalance) yield Map(instrument.base -> bBase, instrument.counter -> bQuote)
       Fill(venue, Position(baseDelta, quoteDelta, None, time, UUID.randomUUID()), id, if (fillId.isEmpty) None else Some(fillId), inv)
     })
